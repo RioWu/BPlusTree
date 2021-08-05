@@ -6,12 +6,12 @@
 
 #define BP_ORDER 20
 
-//offset
+//偏移量
 #define OFFSET_META 0
 #define OFFSET_BLOCK OFFSET_META + sizeof(meta_t)
 #define SIZE_NO_CHILDREN sizeof(leaf_node_t) - BP_ORDER * sizeof(record_t)
 
-//key&value
+//定义索引结构和数据结构
 typedef int value_t;
 struct key_t
 {
@@ -27,7 +27,7 @@ struct key_t
     }
 };
 
-//compare two keys
+//重载操作符，最终目的是使用stl里的算法去处理自定义的数据结构。
 int keycmp(key_t a, key_t b)
 {
     int x = strlen(a.k) - strlen(b.k);
@@ -54,7 +54,7 @@ bool operator==(T l, key_t r)
     return keycmp(l.key, r) == 0;
 }
 
-//meta information for bpt
+//一棵b+树所需要的元数据
 typedef struct
 {
     size_t order;
@@ -68,7 +68,7 @@ typedef struct
     off_t leaf_offset;
 } meta_t;
 
-//internal node
+//内部节点结构
 struct index_t
 {
     key_t key;
@@ -76,6 +76,7 @@ struct index_t
 };
 struct internal_node_t
 {
+    typedef index_t * child_t;
     off_t parent;
     off_t next;
     off_t prev;
@@ -83,7 +84,7 @@ struct internal_node_t
     index_t children[BP_ORDER];
 };
 
-//leaf node
+//叶子节点结构
 struct record_t
 {
     key_t key;
@@ -91,6 +92,7 @@ struct record_t
 };
 struct leaf_node_t
 {
+    typedef record_t *child_t;
     off_t parent;
     off_t next;
     off_t prev;
@@ -98,11 +100,12 @@ struct leaf_node_t
     record_t children[BP_ORDER];
 };
 
-//bpt
+//b+树
 class bpt
 {
 public:
     bpt(char *path, bool force_empty = false);
+    //抽象函数，设为public，可以直接调用。
     int search(key_t key, value_t value);
     int search_range(key_t left, key_t right, value_t *values, size_t max, bool *next = NULL);
     int remove(key_t key);
@@ -119,7 +122,7 @@ private:
 
     void init_from_empty();
 
-    //search
+    //查找
     off_t search_index(key_t key);
     off_t search_leaf(off_t index, key_t key);
     off_t search_leaf(key_t key)
@@ -127,7 +130,7 @@ private:
         return search_leaf(search_index(key), key);
     }
 
-    //remove
+    //删除
     void remove_from_index(off_t offset, internal_node_t &node, key_t key);
     bool borrow_key(bool from_right, internal_node_t &borrower, off_t offset);
     bool borrow_key(bool from_right, internal_node_t &borrower);
@@ -136,7 +139,7 @@ private:
     void merge_keys(index_t *where, internal_node_t &left,
                     internal_node_t &right, bool change_where_key = false);
 
-    //insert
+    //增加
     void insert_record_no_split(leaf_node_t *leaf,
                                 key_t key, value_t value);
     void insert_key_to_index(off_t offset, key_t key,
@@ -151,7 +154,7 @@ private:
     template <class T>
     void node_remove(T *prev, T *node);
 
-    // open/close file
+    //用于打开关闭文件
     FILE *fp;
     int fp_level;
 
@@ -169,7 +172,7 @@ private:
         --fp_level;
     }
 
-    // alloc/unalloc
+    //为节点分配磁盘空间
     off_t alloc(size_t size)
     {
         off_t slot = meta.slot;
@@ -198,9 +201,9 @@ private:
         --meta.internal_node_num;
     }
 
-    // read/write
+    //读磁盘、写磁盘
     template <class T>
-    int get_data(void *block, off_t offset, size_t size)
+    int read(void *block, off_t offset, size_t size)
     {
         open_file();
         fseek(fp, offset, SEEK_SET);
@@ -209,12 +212,12 @@ private:
         return rd - 1;
     }
     template <class T>
-    int get_data(T *block, off_t offset)
+    int read(T *block, off_t offset)
     {
         return get_data(block, offset, sizeof(T));
     }
 
-    int put_data(void *block, off_t offset, size_t size) const
+    int write(void *block, off_t offset, size_t size) const
     {
         open_file();
         fseek(fp, offset, SEEK_SET);
@@ -224,7 +227,7 @@ private:
     }
 
     template <class T>
-    int put_data(T *block, off_t offset) const
+    int write(T *block, off_t offset) const
     {
         return put_data(block, offset, sizeof(T));
     }
