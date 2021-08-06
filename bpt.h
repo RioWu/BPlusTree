@@ -214,7 +214,7 @@ private:
     template <class T>
     int read(T *block, off_t offset)
     {
-        return get_data(block, offset, sizeof(T));
+        return read(block, offset, sizeof(T));
     }
 
     int write(void *block, off_t offset, size_t size) const
@@ -229,6 +229,6 @@ private:
     template <class T>
     int write(T *block, off_t offset) const
     {
-        return put_data(block, offset, sizeof(T));
+        return write(block, offset, sizeof(T));
     }
 };
