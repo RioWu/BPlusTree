@@ -63,11 +63,12 @@ index_t *find(internal_node_t &node, key_t &key)
     {
         return upper_bound(begin(node.children), end(node.children), key);
     }
+    //由于index_t数组的最后一个元素是空，所以当我们查找空key值时（用于合并内部结点），应该返回倒数第二个位置。
     if (node.n > 1)
     {
         return node.children + node.n - 2;
     }
-    return begin(node);
+    return begin(node.children);
 }
 record_t *find(leaf_node_t &node, const key_t &key)
 {
@@ -173,4 +174,171 @@ int bpt::search_range(key_t *left, key_t &right,
     }
     return i;
 }
+int bpt::remove(key_t &key)
+{
+    internal_node_t parent;
+    leaf_node_t leaf;
 
+    //找到父结点
+    off_t parent_off = search_index(key);
+    read(&parent, parent_off);
+
+    //找到当前结点
+    index_t *where = find(parent, key);
+    off_t offset = where->child;
+    read(&leaf, offset);
+
+    //核实当前结点的正确性
+    if (!binary_search(begin(leaf.children), end(leaf.children), key))
+        return -1;
+
+    size_t min_n = meta.leaf_node_num == 1 ? 0 : meta.order / 2;
+    assert(leaf.n >= min_n && leaf.n <= meta.order);
+
+    //删除该key值
+    record_t *to_delete = find(leaf, key);
+    std::copy(to_delete + 1, end(leaf.children), to_delete);
+    //std::copy(要拷贝元素的首地址，要拷贝元素的最后一个地址的下一个地址，要拷贝的目的地的首地址)
+    leaf.n--;
+
+    //合并或者借用其他结点的key值
+    if (leaf.n < min_n)
+    {
+        //先尝试从左兄弟结点借
+        bool borrowed = false;
+        if (leaf.prev != 0)
+            borrowed = borrow_key(false, leaf);
+
+        //再尝试从右兄弟借
+        if(!borrowed && leaf.next !=0)
+            borrowed = borrow_key(true,leaf);
+        
+        //若都无法借，则尝试合并
+        if(!borrowed)
+        {
+
+        }
+    }
+    else{
+        write(&leaf,offset);
+    }
+    return 0;
+}
+//内部结点的借操作
+bool bpt::borrow_key(bool from_right, internal_node_t &borrower, off_t offset)
+{
+    typedef typename internal_node_t::child_t child_t;
+
+    off_t lender_off = from_right ? borrower.next : borrower.prev;
+    internal_node_t lender;
+    read(&lender, lender_off);
+
+    assert(lender.n >= meta.order / 2);
+    if (lender.n != meta.order / 2)
+    {
+        child_t where_to_lend, where_to_put;
+        internal_node_t parent;
+
+        //从右兄弟结点中借多余的key值，并且更新父结点。
+        if (from_right)
+        {
+            where_to_lend = begin(lender.children);
+            where_to_put = end(borrower.children);
+
+            read(&parent, borrower.parent);
+            child_t where = lower_bound(begin(parent.children), end(parent.children),
+                                        (end(borrower.children) - 1)->key);
+            where->key = where_to_lend->key;
+            write(&parent, borrower.parent);
+        }
+        //从左兄弟结点中借多余的key值，并且更新父结点。
+        else
+        {
+            where_to_lend = end(lender.children) - 1;
+            where_to_put = begin(borrower.children);
+
+            read(&parent, lender.parent);
+            child_t where = find(parent, begin(lender.children)->key);
+            where->key = (where_to_lend - 1)->key;
+            write(&parent, lender.parent);
+        }
+        //更新borroer结点
+        std::copy_backward(where_to_put, end(borrower.children), end(borrower.children) + 1);
+        //std::copy_backward(要拷贝元素的首地址，要拷贝元素的最后一个地址的下一个地址，要拷贝目的地的尾地址的下一个地址)
+        *where_to_put = *where_to_lend;
+        borrower.n++;
+
+        //更新lender结点
+        reset_index_children_parent(where_to_lend, where_to_lend + 1, offset);
+        std::copy(where_to_lend + 1, end(lender.children), where_to_lend);
+        lender.n--;
+        write(&lender, lender_off);
+        return true;
+    }
+    return false;
+}
+//叶子结点的借操作
+bool bpt::borrow_key(bool from_right, leaf_node_t &borrower)
+{
+    off_t lender_off = from_right ? borrower.next : borrower.prev;
+    leaf_node_t lender;
+    read(&lender, lender_off);
+
+    assert(lender.n >= meta.order / 2);
+    if (lender.n != meta.order / 2)
+    {
+        typename leaf_node_t::child_t where_to_lend, where_to_put;
+        if (from_right)
+        {
+            where_to_lend = begin(lender);
+            where_to_put = end(borrower);
+            change_parent_child(borrower.parent, begin(borrower.children)->key,
+                                lender.children[1].key);
+        }
+        else
+        {
+            where_to_lend = end(lender) - 1;
+            where_to_put = begin(borrower);
+            change_parent_child(lender.parent, begin(lender.children)->key,
+                                where_to_lend->key);
+        }
+        //更新borrower结点
+        std::copy_backward(where_to_put, end(borrower.children), end(borrower.children) + 1);
+        *where_to_put = *where_to_lend;
+        borrower.n++;
+
+        //更新lender结点
+        std::copy(where_to_lend + 1, end(lender.children), where_to_lend);
+        lender.n--;
+        write(&lender, lender_off);
+        return true;
+    }
+    return false;
+}
+void bpt::change_parent_child(off_t parent, key_t &o, key_t &n)
+{
+    internal_node_t node;
+    read(&node, parent);
+
+    index_t *w = find(node, o);
+    assert(w != node.children + node.n);
+
+    w->key = n;
+    write(&node, parent);
+    if (w == node.children + node.n - 1)
+    {
+        change_parent_child(node.parent, o, n);
+    }
+}
+//修改结点的父结点
+void bpt::reset_index_children_parent(index_t *begin, index_t *end, off_t parent)
+{
+    internal_node_t node;
+    while(begin != end)
+    {
+        read(&node,begin->child);
+        node.parent = parent;
+        write(&node,begin->child,SIZE_NO_CHILDREN);
+        ++begin;
+    }
+}

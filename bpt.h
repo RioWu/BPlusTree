@@ -61,7 +61,7 @@ typedef struct
     size_t value_size;
     size_t key_size;
     size_t internal_node_num;
-    size_t lead_node_num;
+    size_t leaf_node_num;
     size_t height;
     off_t slot;
     off_t root_offset;
