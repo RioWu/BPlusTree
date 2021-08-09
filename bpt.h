@@ -9,7 +9,7 @@
 //偏移量
 #define OFFSET_META 0
 #define OFFSET_BLOCK OFFSET_META + sizeof(meta_t)
-//叶子结点除过所存储数据占用的大小，用于仅修改叶子结点结构的情况使用
+//结点除过所存储数据占用的大小，用于仅修改结点结构的情况使用
 #define SIZE_NO_CHILDREN sizeof(leaf_node_t) - BP_ORDER * sizeof(record_t)
 
 //定义索引结构和数据结构
