@@ -1,0 +1,1 @@
+/Library/Developer/CommandLineTools/usr/bin/c++  -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX11.0.sdk -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/dump_numbers.dir/src/dump_numbers.cpp.o CMakeFiles/dump_numbers.dir/src/bpt.cpp.o -o dump_numbers 
