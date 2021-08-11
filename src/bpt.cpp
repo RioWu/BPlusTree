@@ -12,7 +12,31 @@ using std::upper_bound;
 
 namespace BPT
 {
-
+    /*
+        *********
+        运算符重载
+        *********
+    */
+    template <typename T>
+    bool operator<(const key_t &l, const T &r)
+    {
+        return keycmp(l, r.key) < 0;
+    }
+    template <typename T>
+    bool operator<(const T &l, const key_t &r)
+    {
+        return keycmp(l.key, r) < 0;
+    }
+    template <typename T>
+    bool operator==(const key_t &l, const T &r)
+    {
+        return keycmp(l, r.key) == 0;
+    }
+    template <typename T>
+    bool operator==(const T &l, const key_t &r)
+    {
+        return keycmp(l.key, r) == 0;
+    }
     //构造函数
     bpt::bpt(const char *p, bool force_empty) : fp(NULL), fp_level(0)
     {
@@ -74,7 +98,7 @@ namespace BPT
     template <class T>
     typename T::child_t end(T &node)
     {
-        return node.children + node.n;
+        return node.n == 0 ? node.children + node.n + 1 : node.children + node.n;
     }
     //在内部结点查找第一个大于key值的对应元素下标
     index_t *find(internal_node_t &node, const key_t &key)
@@ -680,6 +704,7 @@ namespace BPT
     void bpt::insert_key_to_index_no_split(internal_node_t &node,
                                            const key_t &key, off_t value)
     {
+        //
         index_t *where = upper_bound(begin(node), end(node) - 1, key);
 
         //将后面的索引项前置

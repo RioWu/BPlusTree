@@ -40,27 +40,6 @@ namespace BPT
         int x = strlen(a.k) - strlen(b.k);
         return x == 0 ? strcmp(a.k, b.k) : x;
     }
-    template <typename T>
-    bool operator<(const key_t &l, const T &r)
-    {
-        return keycmp(l, r.key) < 0;
-    }
-    template <typename T>
-    bool operator<(const T &l, const key_t &r)
-    {
-        return keycmp(l.key, r) < 0;
-    }
-    template <typename T>
-    bool operator==(const key_t &l, const T &r)
-    {
-        return keycmp(l, r.key) == 0;
-    }
-    template <typename T>
-    bool operator==(const T &l, const key_t &r)
-    {
-        return keycmp(l.key, r) == 0;
-    }
-
     //一棵b+树所需要的元数据
     typedef struct
     {

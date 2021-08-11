@@ -10,25 +10,27 @@ int main(int argc, char *argv[])
 
     if (argc > 2)
         start = atoi(argv[2]);
-        //atoi()将数字格式的字符串转换为整数类型。
+    //atoi()将数字格式的字符串转换为整数类型。
     if (argc > 3)
         end = atoi(argv[3]);
 
-    if (argc == 1 || start >= end) {
+    if (argc == 1 || start >= end)
+    {
         fprintf(stderr, "usage: %s database [start] [end]\n", argv[0]);
         return 1;
     }
 
     BPT::bpt database(argv[1], true);
-    for (int i = start; i <= end; i++) {
+    for (int i = start; i <= end; i++)
+    {
         if (i % 1000 == 0)
-            printf("%d\n", i);
-        char key[16] = { 0 };
+        printf("%d\n", i);
+        char key[16] = {0};
         sprintf(key, "%d", i);
         database.insert(key, i);
     }
     printf("%d\n", end);
     printf("done\n");
-    
+
     return 0;
 }

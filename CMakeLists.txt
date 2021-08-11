@@ -7,4 +7,6 @@ project(BPT VERSION 1.0.0)
 include_directories(./include)
 add_executable(dump_numbers ./src/dump_numbers.cpp ./src/bpt.cpp)
 
+add_definitions("-Wall -g")
+
 
