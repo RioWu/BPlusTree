@@ -51,6 +51,7 @@ namespace BPT
         }
         if (force_empty)
         {
+            //截断文件
             open_file("w+");
             init_from_empty();
             close_file();
@@ -65,18 +66,15 @@ namespace BPT
         meta.key_size = sizeof(key_t);
         meta.height = 1;
         meta.slot = OFFSET_BLOCK;
-
         //初始化根结点
         internal_node_t root;
         root.next = root.prev = root.parent = 0;
         meta.root_offset = alloc(&root);
-
         //初始化一个空的叶结点
         leaf_node_t leaf;
         leaf.next = leaf.prev = 0;
         leaf.parent = meta.root_offset;
         meta.leaf_offset = root.children[0].child = alloc(&leaf);
-
         //保存上述数据至磁盘
         write(&meta, OFFSET_META);
         write(&root, meta.root_offset);
@@ -88,24 +86,24 @@ namespace BPT
     辅助函数
     *******
 */
-    //两个辅助函数，用于获取结点内元素数组的首地址，以及尾地址向后一位的地址。
+    //获取结点内元素数组的首地址，以及尾地址向后一位的地址。
     template <class T>
-    typename T::child_t begin(T &node)
+    inline typename T::child_t begin(T &node)
     {
         return node.children;
     }
 
     template <class T>
-    typename T::child_t end(T &node)
+    inline typename T::child_t end(T &node)
     {
-        return node.n == 0 ? node.children + node.n + 1 : node.children + node.n;
+        return node.n + node.children;
     }
     //在内部结点查找第一个大于key值的对应元素下标
-    index_t *find(internal_node_t &node, const key_t &key)
+    inline index_t *find(internal_node_t &node, const key_t &key)
     {
         if (key)
         {
-            return upper_bound(begin(node), end(node), key);
+            return upper_bound(begin(node), end(node) - 1, key);
         }
         //由于index_t数组的最后一个元素是空，所以当我们查找空key值时（用于合并内部结点），应该返回倒数第二个位置。
         if (node.n > 1)
@@ -115,7 +113,7 @@ namespace BPT
         return begin(node);
     }
     //在叶子结点中查找第一个小于等于key值的对应元素下标
-    record_t *find(leaf_node_t &node, const key_t &key)
+    inline record_t *find(leaf_node_t &node, const key_t &key)
     {
         return lower_bound(begin(node), end(node), key);
     }
@@ -125,32 +123,6 @@ namespace BPT
         查找相关
         *******
     */
-
-    //根据内部结点偏移量以及key值找到对应的叶子结点
-    off_t bpt::search_leaf(off_t index, const key_t &key) const
-    {
-        internal_node_t node;
-        read(&node, index);
-
-        index_t *i = upper_bound(begin(node), end(node), key);
-        return i->child;
-    }
-    //找到该key值对应的叶子结点的父结点
-    off_t bpt::search_index(const key_t &key) const
-    {
-        off_t org = meta.root_offset;
-        int height = meta.height;
-        while (height > 1)
-        {
-            internal_node_t node;
-            read(&node, org);
-
-            index_t *i = upper_bound(begin(node), end(node), key);
-            org = i->child;
-            --height;
-        }
-        return org;
-    }
     //从根结点开始查找
     int bpt::search(const key_t &key, value_t *value) const
     {
@@ -173,7 +145,7 @@ namespace BPT
 
     //从最小关键字起顺序查找，即从叶子结点出发查找。
     int bpt::search_range(key_t *left, const key_t &right,
-                          value_t *values, size_t max, bool *next)
+                          value_t *values, size_t max, bool *next) const
     {
         if (left == NULL || keycmp(*left, right) > 0)
             return -1;
@@ -184,7 +156,7 @@ namespace BPT
         record_t *b, *e;
 
         leaf_node_t leaf;
-        while (off != off_right && off != 0 & i < max)
+        while (off != off_right && off != 0 && i < max)
         {
             read(&leaf, off);
 
@@ -210,7 +182,7 @@ namespace BPT
             for (; b != e && i < max; ++b, ++i)
                 values[i] = b->value;
         }
-
+        //为下一次迭代做标记
         if (next != NULL)
         {
             if (i == max && b != e)
@@ -224,6 +196,31 @@ namespace BPT
             }
         }
         return i;
+    }
+    //根据内部结点偏移量以及key值找到对应的叶子结点
+    off_t bpt::search_leaf(off_t index, const key_t &key) const
+    {
+        internal_node_t node;
+        read(&node, index);
+
+        index_t *i = upper_bound(begin(node), end(node) - 1, key);
+        return i->child;
+    }
+    //找到该key值对应的叶子结点的父结点
+    off_t bpt::search_index(const key_t &key) const
+    {
+        off_t org = meta.root_offset;
+        int height = meta.height;
+        while (height > 1)
+        {
+            internal_node_t node;
+            read(&node, org);
+
+            index_t *i = upper_bound(begin(node), end(node) - 1, key);
+            org = i->child;
+            --height;
+        }
+        return org;
     }
     /*
     *******
@@ -288,15 +285,15 @@ namespace BPT
                 }
                 else
                 {
-                    //否则合并prev和next
+                    //否则合并leaf和next
                     assert(leaf.next != 0);
                     leaf_node_t next;
                     read(&next, leaf.next);
                     index_key = begin(next)->key;
 
-                    merge_leafs(&next, &leaf);
-                    node_remove(&next, &leaf);
-                    write(&next, leaf.next);
+                    merge_leafs(&leaf, &next);
+                    node_remove(&leaf, &next);
+                    write(&leaf, leaf.next);
                 }
                 //删除父结点对应的key
                 remove_from_index(parent_off, parent, index_key);
@@ -404,12 +401,13 @@ namespace BPT
         }
         node.n--;
         //当被删除的是父结点最后一个key时
-        if (node.n == 1 && meta.root_offset == offset && meta.internal_node_num != 1)
+        if (node.n == 1 && meta.root_offset == offset &&
+            meta.internal_node_num != 1)
         {
             unalloc(&node, meta.root_offset);
             meta.height--;
             meta.root_offset = node.children[0].child;
-            write(&meta, offset);
+            write(&meta, OFFSET_META);
             return;
         }
         //合并或者借兄弟结点的key
@@ -493,7 +491,7 @@ namespace BPT
                 where_to_put = end(borrower);
 
                 read(&parent, borrower.parent);
-                child_t where = lower_bound(begin(parent), end(parent),
+                child_t where = lower_bound(begin(parent), end(parent) - 1,
                                             (end(borrower) - 1)->key);
                 where->key = where_to_lend->key;
                 write(&parent, borrower.parent);
@@ -524,13 +522,16 @@ namespace BPT
         }
         return false;
     }
-    //修改内部结点的父结点
-    void bpt::reset_index_children_parent(index_t *begin, index_t *end, off_t parent)
+    //该函数可以改变内部节点或者叶子结点的父结点，但要满足
+    //1.sizeof(internal_node_t <= sizeof(leaf_node_t)
+    //2.parent属性要放在结构体的开头，并且大小相同
+    void bpt::reset_index_children_parent(index_t *begin, index_t *end,
+                                          off_t parent)
     {
         internal_node_t node;
         while (begin != end)
         {
-            read(&node, begin->child);
+            read(&node, begin->child,size_no);
             node.parent = parent;
             write(&node, begin->child, SIZE_NO_CHILDREN);
             ++begin;
@@ -673,7 +674,7 @@ namespace BPT
             bool place_right = keycmp(key, node.children[point].key) > 0;
             if (place_right)
                 ++point;
-
+            //prevent the 'key' being the right 'middle_key'
             if (place_right && keycmp(key, node.children[point].key) < 0)
                 point--;
 
@@ -694,6 +695,9 @@ namespace BPT
 
             //更新孩子结点的父结点
             reset_index_children_parent(begin(new_node), end(new_node), node.next);
+            //give the middle key to the parent
+            //note:middle key's child is reserved
+            insert_key_to_index(node.parent, middle_key, offset,node.next);
         }
         else
         {
@@ -704,7 +708,6 @@ namespace BPT
     void bpt::insert_key_to_index_no_split(internal_node_t &node,
                                            const key_t &key, off_t value)
     {
-        //
         index_t *where = upper_bound(begin(node), end(node) - 1, key);
 
         //将后面的索引项前置
@@ -714,6 +717,8 @@ namespace BPT
         where->key = key;
         where->child = (where + 1)->child;
         (where + 1)->child = value;
+        //*******
+        node.n++;
     }
     /*
     *******

@@ -9,10 +9,11 @@
 
 namespace BPT
 {
-#define BP_ORDER 20
+#define BP_ORDER 4
 
-//偏移量
+//B+树元信息
 #define OFFSET_META 0
+//用于存储B+树内容的位置
 #define OFFSET_BLOCK OFFSET_META + sizeof(meta_t)
 //结点除过所存储数据占用的大小，用于仅修改结点结构的情况使用
 #define SIZE_NO_CHILDREN sizeof(leaf_node_t) - BP_ORDER * sizeof(record_t)
@@ -39,6 +40,11 @@ namespace BPT
     {
         int x = strlen(a.k) - strlen(b.k);
         return x == 0 ? strcmp(a.k, b.k) : x;
+    }
+    //用于单元测试
+        inline int keycmp_ut(const key_t &l, const key_t &r)
+    {
+        return strcmp(l.k, r.k);
     }
     //一棵b+树所需要的元数据
     typedef struct
@@ -92,10 +98,9 @@ namespace BPT
     {
     public:
         bpt(const char *path, bool force_empty = false);
-        //抽象函数，设为public，可以直接调用。
         int search(const key_t &key, value_t *value) const;
         int search_range(key_t *left, const key_t &right,
-                         value_t *values, size_t max, bool *next = NULL);
+                         value_t *values, size_t max, bool *next = NULL) const;
         int remove(const key_t &key);
         int insert(const key_t &key, value_t value);
         int update(const key_t &key, value_t value);
@@ -104,7 +109,6 @@ namespace BPT
             return meta;
         }
 
-    private:
         char path[512];
         meta_t meta;
 
@@ -130,18 +134,25 @@ namespace BPT
             删除相关
             *******
         */
-        //删除内部结点
-        void remove_from_index(off_t offset, internal_node_t &node, const key_t &key);
+        //删除内部结点里对应的key值
+        void remove_from_index(off_t offset, internal_node_t &node,
+                               const key_t &key);
         //从内部结点借一个索引项
-        bool borrow_key(bool from_right, internal_node_t &borrower, off_t offset);
+        bool borrow_key(bool from_right, internal_node_t &borrower,
+                        off_t offset);
         //从叶子结点借一个数据项
         bool borrow_key(bool from_right, leaf_node_t &borrower);
         //修改一个结点的父结点对应的key
-        void change_parent_child(off_t parent, const key_t &o, const key_t &n);
+        void change_parent_child(off_t parent, const key_t &o,
+                                 const key_t &n);
         //将右边的叶子合并至左边的叶子结点
         void merge_leafs(leaf_node_t *left, leaf_node_t *right);
+        //合并内部节点
         void merge_keys(index_t *where, internal_node_t &left,
                         internal_node_t &right, bool change_where_key = false);
+        //修改孩子结点的父结点
+        void reset_index_children_parent(index_t *begin, index_t *end,
+                                         off_t parent);
 
         /*
             *******
@@ -151,14 +162,13 @@ namespace BPT
         //将一个数据项插入至叶子结点（不包含分裂的情况）
         void insert_record_no_split(leaf_node_t *leaf,
                                     const key_t &key, const value_t &value);
-        //讲一个索引项插入至内部节点
+        //将一个索引项插入至内部节点
         void insert_key_to_index(off_t offset, const key_t &key,
                                  off_t value, off_t after);
+        //将一个索引项插入至内部节点（不包含分裂的情况）
         void insert_key_to_index_no_split(internal_node_t &node, const key_t &key,
                                           off_t value);
-        //修改孩子结点的父结点
-        void reset_index_children_parent(index_t *begin, index_t *end,
-                                         off_t parent);
+
 
         template <class T>
         void node_create(off_t offset, T *node, T *next);
