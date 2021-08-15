@@ -112,7 +112,7 @@ namespace BPT
         char path[512];
         meta_t meta;
 
-        //初始化B+树
+        //初始化一颗空的B+树
         void init_from_empty();
 
         /*

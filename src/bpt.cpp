@@ -85,7 +85,7 @@ namespace BPT
     *******
     辅助函数
     *******
-*/
+    */
     //获取结点内元素数组的首地址，以及尾地址向后一位的地址。
     template <class T>
     inline typename T::child_t begin(T &node)
@@ -226,7 +226,7 @@ namespace BPT
     *******
     删除相关
     *******
-*/
+    */
     int bpt::remove(const key_t &key)
     {
         internal_node_t parent;
@@ -531,7 +531,7 @@ namespace BPT
         internal_node_t node;
         while (begin != end)
         {
-            read(&node, begin->child,size_no);
+            read(&node, begin->child, SIZE_NO_CHILDREN);
             node.parent = parent;
             write(&node, begin->child, SIZE_NO_CHILDREN);
             ++begin;
@@ -552,7 +552,7 @@ namespace BPT
     *******
     增加相关
     *******
-*/
+    */
     int bpt::insert(const key_t &key, value_t value)
     {
         off_t parent = search_index(key);
@@ -611,7 +611,7 @@ namespace BPT
         next->next = node->next;
         next->prev = offset;
         node->next = alloc(next);
-        //更新next结点的prev
+        //更新node->next->next结点的prev
         if (next->next != 0)
         {
             T old_next;
@@ -697,7 +697,7 @@ namespace BPT
             reset_index_children_parent(begin(new_node), end(new_node), node.next);
             //give the middle key to the parent
             //note:middle key's child is reserved
-            insert_key_to_index(node.parent, middle_key, offset,node.next);
+            insert_key_to_index(node.parent, middle_key, offset, node.next);
         }
         else
         {
@@ -710,7 +710,7 @@ namespace BPT
     {
         index_t *where = upper_bound(begin(node), end(node) - 1, key);
 
-        //将后面的索引项前置
+        //将索引项整体后移
         std::copy_backward(where, end(node), end(node) + 1);
 
         //插入该key

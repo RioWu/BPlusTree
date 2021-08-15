@@ -17,24 +17,17 @@ int main(int argc, char *argv[])
     if (argc > 3)
         end = atoi(argv[3]);
 
-    if (argc != 5 || start >= end)
+    if (argc != 4 || start >= end)
     {
-        fprintf(stderr, "usage: %s database [start] [end] s/us\n", argv[0]);
+        fprintf(stderr, "usage: %s database [start] [end] \n", argv[0]);
         return 1;
     }
-    if (strcmp(argv[4], "s") != 0 && strcmp(argv[4], "us") != 0)
-    {
-        fprintf(stderr, "usage: %s database [start] [end] s/us\n", argv[0]);
-        return 1;
-    }
-
-    if (strcmp(argv[4], "s") == 0)
     {
         start_time = clock();
         BPT::bpt database(argv[1], true);
         for (int i = start; i <= end; i++)
         {
-            if (i % 1000 == 0)
+            if (i % 10000 == 0)
                 printf("%d\n", i);
             char key[16] = {0};
             sprintf(key, "%d", i);
@@ -42,12 +35,10 @@ int main(int argc, char *argv[])
         }
         printf("%d\n", end);
         end_time = clock();
-        std::cout << "运行时间" << (double)(end_time - start_time) / CLOCKS_PER_SEC << std::endl;
+        std::cout << "顺序插入运行时间" << (double)(end_time - start_time) / CLOCKS_PER_SEC << std::endl;
     }
-
-    else if (strcmp(argv[4], "us") == 0)
     {
-        int length = end - start, i, j;
+        int length = end - start + 1, i, j;
         int array[length];
         for (i = 0, j = start; i <= length - 1; i++, j++)
         {
@@ -58,15 +49,15 @@ int main(int argc, char *argv[])
         BPT::bpt database(argv[1], true);
         for (i = 0; i <= length - 1; i++)
         {
-            if (i % 1000 == 0)
+            if (i  % 10000 == 0)
                 printf("%d\n", i);
             char key[16] = {0};
-            sprintf(key, "%d", i);
-            database.insert(key, i);
+            sprintf(key, "%d", array[i]);
+            database.insert(key, array[i]);
         }
         printf("%d\n", end);
         end_time = clock();
-        std::cout << "运行时间" << (double)(end_time - start_time) / CLOCKS_PER_SEC << std::endl;
+        std::cout << "乱序插入运行时间" << (double)(end_time - start_time) / CLOCKS_PER_SEC << std::endl;
     }
     return 0;
 }
